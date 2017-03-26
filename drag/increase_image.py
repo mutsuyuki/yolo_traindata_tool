@@ -80,7 +80,7 @@ if __name__ == '__main__':
     LUTs = []
 
     # 平滑化用
-    average_square = (10, 10)
+    average_square = (4, 4)
 
     # ハイコントラストLUT作成
     for i in range(0, min_table):
@@ -103,58 +103,69 @@ if __name__ == '__main__':
     LUTs.append(LUT_G1)
     LUTs.append(LUT_G2)
 
-    # 画像の読み込み
-    img_src = cv2.imread(sys.argv[1], 1)
-    trans_img = []
-    trans_img.append(img_src)
+    imageDir = sys.argv[1]
+    files = os.listdir(sys.argv[1])
 
-    # LUT変換
-    for i, LUT in enumerate(LUTs):
-        trans_img.append(cv2.LUT(img_src, LUT))
+    for file_name in files:
+        file_path = imageDir + file_name
+        file_type = os.path.splitext(os.path.basename(file_path))[1]
 
-    # 平滑化
-    trans_img.append(cv2.blur(img_src, average_square))
+        if(file_type != ".jpg" and file_type != ".png"):
+            continue
 
-    # ヒストグラム均一化
-    trans_img.append(equalizeHistRGB(img_src))
+        # 画像の読み込み
+        img_src = cv2.imread(file_path, 1)
+        trans_img = []
+        trans_img.append(img_src)
 
-    # ノイズ付加
-    trans_img.append(addGaussianNoise(img_src))
-    trans_img.append(addSaltPepperNoise(img_src))
+        # LUT変換
+        for i, LUT in enumerate(LUTs):
+            trans_img.append(cv2.LUT(img_src, LUT))
 
-    # グレースケール変換
-    trans_img.append(rgbaToGray(img_src))
+        # 平滑化
+        trans_img.append(cv2.blur(img_src, average_square))
 
-    # 反転
-    flip_img = []
-    for img in trans_img:
-        flip_img.append(cv2.flip(img, 1))
+        # ヒストグラム均一化
+        trans_img.append(equalizeHistRGB(img_src))
 
-    basename = os.path.splitext(os.path.basename(sys.argv[1]))[0]
-    img_src.astype(np.float64)
-    print(len(trans_img))
-    print(len(flip_img))
+        # ノイズ付加
+        trans_img.append(addGaussianNoise(img_src))
+        trans_img.append(addSaltPepperNoise(img_src))
+
+        # グレースケール変換
+        # trans_img.append(rgbaToGray(img_src))
+
+        # 反転
+        flip_img = []
+        for img in trans_img:
+            flip_img.append(cv2.flip(img, 1))
 
 
-    cv2.imwrite("my_train_data/JPEGImages/" + basename + ".jpg", img_src)
-    shutil.copy("workLabels/" + basename + ".txt", "my_train_data/labels/" + basename + ".txt")
+        basename = os.path.splitext(os.path.basename(file_path))[0]
+        img_src.astype(np.float64)
+        print(len(trans_img))
+        print(len(flip_img))
 
-    for i, img in enumerate(trans_img):
-        cv2.imwrite("my_train_data/JPEGImages/" + basename + "_" + str(i) + ".jpg", img)
-        shutil.copy("workLabels/" + basename + ".txt", "my_train_data/labels/" + basename + "_" + str(i) + ".txt")
 
-    for i, img in enumerate(flip_img):
-        file_index = i + len(trans_img)
-        cv2.imwrite("my_train_data/JPEGImages/" + basename + "_" + str(file_index) + ".jpg", img)
-        teacher_data = []
-        with open("./workLabels/" + basename + ".txt") as f:
-            for line in f:
-                data = line.split(" ")
-                if (len(data) < 5):
-                    break
-                teacher_data.append( data[0] + " " + str(1 - float(data[1])) + " " + data[2] + " " + data[3] + " " + data[4] )
+        cv2.imwrite("my_train_data/JPEGImages/" + basename + ".jpg", img_src)
+        shutil.copy("workLabels/" + basename + ".txt", "my_train_data/labels/" + basename + ".txt")
 
-        with open("./my_train_data/labels/" + basename + "_" + str(file_index) + ".txt", "w") as f:
+        for i, img in enumerate(trans_img):
+            cv2.imwrite("my_train_data/JPEGImages/" + basename + "_" + str(i) + ".jpg", img)
+            shutil.copy("workLabels/" + basename + ".txt", "my_train_data/labels/" + basename + "_" + str(i) + ".txt")
+
+        for i, img in enumerate(flip_img):
             file_index = i + len(trans_img)
-            for line in teacher_data:
-                f.write(line)
+            cv2.imwrite("my_train_data/JPEGImages/" + basename + "_" + str(file_index) + ".jpg", img)
+            teacher_data = []
+            with open("./workLabels/" + basename + ".txt") as f:
+                for line in f:
+                    data = line.split(" ")
+                    if (len(data) < 5):
+                        break
+                    teacher_data.append( data[0] + " " + str(1 - float(data[1])) + " " + data[2] + " " + data[3] + " " + data[4] )
+
+            with open("./my_train_data/labels/" + basename + "_" + str(file_index) + ".txt", "w") as f:
+                file_index = i + len(trans_img)
+                for line in teacher_data:
+                    f.write(line)

@@ -4,16 +4,30 @@ from kivy.uix.image import Image
 from kivy.graphics import *
 from kivy.loader import Loader
 from kivy.core.window import Window
+from kivy.core.text import Label as CoreLabel
 
 import copy
 import cv2
 import sys
 import os
+import fcntl
 
 
 class Common:
     # please set class of image
-    image_class = "4"
+    image_categories = [
+        ("2", "sticky"),
+        ("3", "heart"),
+        ("4", "clock"),
+        ("5", "thema"),
+        ("6", "idea"),
+        ("7", "ai"),
+        ("8", "cookie_heart"),
+        ("9", "cookie_clock"),
+        ("10", "cookie_thema"),
+        ("11", "cookie_idea"),
+        ("12", "cookie_ai"),
+    ]
 
     # init by program
     image_width = 0
@@ -43,7 +57,7 @@ class DrawInput(Widget):
 
         self._touch_move_point = copy.copy(touch)
 
-        self.canvas.clear()
+        self.drawTeacherData()
         with self.canvas:
             Color(0, 1, 1)
             Line(rectangle=(
@@ -53,7 +67,6 @@ class DrawInput(Widget):
                 self._touch_move_point.y - self._touch_down_point.y
             ))
 
-        self.drawTeacherData()
 
     def _keyboard_closed(self):
         print('My keyboard have been closed!')
@@ -62,16 +75,52 @@ class DrawInput(Widget):
 
     def on_key_down(self, keyboard, keycode, text, modifiers):
         print(keycode)
-        if keycode[1] == 's':
-            self.saveTeacherData()
-        if keycode[1] == 'r':
-            self.drawTeacherData()
 
-    def saveTeacherData(self):
+        if keycode[1] == 'd':
+            self.drawTeacherData()
+            return
+
+        if keycode[1] == 'z':
+            self.deleteLastLine()
+            return
+
+        if keycode[1] == 'c':
+            self.canvas.clear()
+            return
+
+        for category in Common.image_categories:
+            print keycode[1],category[0]
+            if(keycode[1] == category[0]):
+                self.saveTeacherData(category)
+                return
+
+        if keycode[1] == 'r':
+            self.saveTeacherData(Common.image_categories[6])
+            return
+
+        if keycode[1] == 't':
+            self.saveTeacherData(Common.image_categories[7])
+            return
+
+        if keycode[1] == 'y':
+            self.saveTeacherData(Common.image_categories[8])
+            return
+
+        if keycode[1] == 'u':
+            self.saveTeacherData(Common.image_categories[9])
+            return
+
+        if keycode[1] == 'i':
+            self.saveTeacherData(Common.image_categories[10])
+            return
+
+
+    def saveTeacherData(self, __category):
         if (self._touch_down_point == []):
             return
 
-        teacher_data = Common.image_class + " " + \
+        category_id = __category[0]
+        teacher_data = category_id + " " + \
                        str((self._touch_down_point.sx + self._touch_move_point.sx) / 2.0) + " " + \
                        str((1 - self._touch_down_point.sy + 1 - self._touch_move_point.sy) / 2.0) + " " + \
                        str(abs(self._touch_move_point.sx - self._touch_down_point.sx)) + " " + \
@@ -88,26 +137,55 @@ class DrawInput(Widget):
         self._prev_teacher_data = teacher_data
         self.drawTeacherData()
 
+    def deleteLastLine(self):
+        lines = []
+        with open(Common.label_file_path) as f:
+            for line in f:
+                lines.append(line)
+
+        with open(Common.label_file_path, 'w') as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            for i in range(0, len(lines) - 1):
+                f.write(lines[i])
+
+        self.drawTeacherData()
+
     def drawTeacherData(self):
+        self.canvas.clear()
+
+        print Common.label_file_path
         if (os.path.isfile(Common.label_file_path) != True):
             return
 
         with open(Common.label_file_path) as f:
             for line in f:
                 data = line.split(" ")
-                if(len(data) < 5):
+                if (len(data) < 5):
                     return
                 x = float(data[1])
                 y = 1.0 - float(data[2])
                 w = float(data[3])
                 h = float(data[4])
                 with self.canvas:
-                    Line(rectangle=(
-                        (x - (w / 2.0)) * Common.image_width,
-                        (y - (h / 2.0)) * Common.image_height,
-                        w * Common.image_width,
-                        h * Common.image_height
-                    ), width=3)
+                    rectX = (x - (w / 2.0)) * Common.image_width
+                    rectY = (y - (h / 2.0)) * Common.image_height
+                    rectWidth = w * Common.image_width
+                    rectHeight = h * Common.image_height
+                    Line(rectangle=(rectX, rectY, rectWidth, rectHeight), width=3)
+
+                    label = CoreLabel()
+                    label.text = "missing"
+                    for category in Common.image_categories:
+                        category_id =  category[0]
+                        if(category_id == data[0]):
+                            label.text = category[1]
+
+                    label.font_size = 20
+                    label.refresh()
+                    text = label.texture
+                    textX = int(rectX + rectWidth / 2 - text.size[0] / 2)
+                    textY = int(rectY + rectHeight / 2 - text.size[1] / 2)
+                    Rectangle(size=text.size, pos=(textX, textY), texture=text)
 
 
 class DrawImage(Widget):
@@ -126,7 +204,6 @@ class DrawImage(Widget):
 
 
 class MainApp(App):
-
     def __init__(self, **kwargs):
         super(MainApp, self).__init__(**kwargs)
 
@@ -140,7 +217,6 @@ class MainApp(App):
 
         self._drawInput = DrawInput()
         self._root.add_widget(self._drawInput)
-
 
     def build(self):
         return self._root
@@ -156,6 +232,7 @@ if __name__ == "__main__":
         Common.image_height, Common.image_width = img.shape[:2]
 
         Common.label_file_path = sys.argv[1] + Common.image_file_path.split("/")[-1].split(".")[0] + ".txt"
+
 
     makeCommon()
     MainApp().run()
